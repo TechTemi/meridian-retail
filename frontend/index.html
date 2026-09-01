@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Meridian Retail Group</title>
+<style>
+  body { font-family: -apple-system, Arial, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; color: #1a1a2e; }
+  h1 { margin-bottom: 4px; }
+  .tagline { color: #666; margin-top: 0; }
+  section { border: 1px solid #e2e2e2; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+  label { display: block; margin-top: 8px; font-size: 14px; }
+  input { width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box; }
+  button { margin-top: 12px; padding: 10px 16px; background: #16324f; color: white; border: none; border-radius: 6px; cursor: pointer; }
+  button:hover { background: #0d1f30; }
+  #products { list-style: none; padding: 0; }
+  #products li { padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+  .status { font-size: 13px; margin-top: 8px; }
+  .status.ok { color: #147a3b; }
+  .status.err { color: #b3261e; }
+  code { background: #f2f2f2; padding: 1px 4px; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<h1>Meridian Retail Group</h1>
+<p class="tagline">African fashion &amp; lifestyle — curated, ethically-sourced.</p>
+
+<!-- Note: every fetch() below uses a RELATIVE path like /api/auth/signup.
+     No port numbers, no hardcoded host. The reverse proxy in front of
+     this page is responsible for routing each /api/* path to the
+     correct backend service. That's the entire point of this project. -->
+
+<section>
+  <h2>Sign Up</h2>
+  <label>Email <input type="email" id="signup-email" placeholder="you@example.com" /></label>
+  <label>Password <input type="password" id="signup-password" /></label>
+  <button onclick="signup()">Create Account</button>
+  <div id="signup-status" class="status"></div>
+</section>
+
+<section>
+  <h2>Log In</h2>
+  <label>Email <input type="email" id="login-email" placeholder="you@example.com" /></label>
+  <label>Password <input type="password" id="login-password" /></label>
+  <button onclick="login()">Log In</button>
+  <div id="login-status" class="status"></div>
+</section>
+
+<section>
+  <h2>Products</h2>
+  <button onclick="loadProducts()">Refresh Catalog</button>
+  <ul id="products"></ul>
+</section>
+
+<section>
+  <h2>Place an Order</h2>
+  <label>Product ID <input type="number" id="order-product-id" value="1" /></label>
+  <label>Quantity <input type="number" id="order-quantity" value="1" /></label>
+  <button onclick="placeOrder()">Place Order</button>
+  <div id="order-status" class="status"></div>
+</section>
+
+<script>
+let authToken = null;
+
+async function signup() {
+  const email = document.getElementById("signup-email").value;
+  const password = document.getElementById("signup-password").value;
+  const statusEl = document.getElementById("signup-status");
+  try {
+    const res = await fetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Signup failed");
+    authToken = data.token;
+    statusEl.textContent = `Account created. Token stored.`;
+    statusEl.className = "status ok";
+  } catch (err) {
+    statusEl.textContent = err.message;
+    statusEl.className = "status err";
+  }
+}
+
+async function login() {
+  const email = document.getElementById("login-email").value;
+  const password = document.getElementById("login-password").value;
+  const statusEl = document.getElementById("login-status");
+  try {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Login failed");
+    authToken = data.token;
+    statusEl.textContent = `Logged in. Token stored.`;
+    statusEl.className = "status ok";
+  } catch (err) {
+    statusEl.textContent = err.message;
+    statusEl.className = "status err";
+  }
+}
+
+async function loadProducts() {
+  const list = document.getElementById("products");
+  list.innerHTML = "<li>Loading…</li>";
+  try {
+    const res = await fetch("/api/catalog/products");
+    const products = await res.json();
+    list.innerHTML = "";
+    products.forEach((p) => {
+      const li = document.createElement("li");
+      li.innerHTML = `<span>#${p.id} — ${p.name} (${p.category})</span><strong>$${p.price}</strong>`;
+      list.appendChild(li);
+    });
+  } catch (err) {
+    list.innerHTML = `<li>Failed to load products: ${err.message}</li>`;
+  }
+}
+
+async function placeOrder() {
+  const productId = parseInt(document.getElementById("order-product-id").value, 10);
+  const quantity = parseInt(document.getElementById("order-quantity").value, 10);
+  const statusEl = document.getElementById("order-status");
+  if (!authToken) {
+    statusEl.textContent = "You must sign up or log in first.";
+    statusEl.className = "status err";
+    return;
+  }
+  try {
+    const res = await fetch("/api/orders", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ product_id: productId, quantity }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Order failed");
+    statusEl.textContent = `Order placed: ${data.quantity}x ${data.product} — total $${data.total_price}`;
+    statusEl.className = "status ok";
+  } catch (err) {
+    statusEl.textContent = err.message;
+    statusEl.className = "status err";
+  }
+}
+
+loadProducts();
+</script>
+
+</body>
+</html>
