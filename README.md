@@ -61,3 +61,81 @@ curl http://localhost:8080 # should return the storefront HTML
 Once your reverse proxy is in place, the frontend's public port exposure
 should be reconsidered — customers should reach everything through your
 domain and Nginx, not a raw `:8080`.
+
+## New Concepts Reference Table
+
+| Concept | Description | Status |
+|---|---|---|
+| Terraform & VPC | Automating custom network isolation, subnets, and server provisioning via code. | New to this project |
+| IAM Instance Profile | Securely attaching scoped permissions directly to a server instead of using keys. | New to this project |
+| Immutable ECR | Secure container registries that prevent overwriting existing image tags. | New to this project |
+| Dynamic Security Groups | Modifying AWS firewall rules through CI/CD to whitelist runner IPs. | New to this project |
+| Reverse Proxy | A server that sits in front of backend services and forwards client requests. | New to this project |
+| `proxy_pass` directive | The Nginx directive that forwards a matched request to a backend address. | New to this project |
+| DNS A record | A DNS record that maps a domain name to an IPv4 address. | New to this project |
+| TLS / HTTPS (Certbot) | Encrypting traffic between the browser and the server. | New to this project |
+| Docker Compose networking | Containers reaching each other by service name internally. | Existing knowledge |
+
+## What You Will Build
+
+The project has ten deliverables. Each deliverable has a specific,
+observable verification. D9, the tested restore, and D10, the automated
+deployment, most clearly distinguish this project from a tutorial because
+both require proving that the system works end to end securely.
+
+| Ref | Deliverable | Verification |
+|---|---|---|
+| D1 | Custom VPC and EC2 provisioned via Terraform | `terraform output` shows the VPC ID and EC2 public IP. The server runs Ubuntu 22.04. |
+| D2 | Security group IP whitelisting | AWS Console confirms that port 22 is restricted exclusively to the intern's specific IP address. |
+| D3 | Immutable ECR repositories | AWS Console shows ECR repositories for auth, catalog, orders, and frontend with mutability set to `IMMUTABLE`. |
+| D4 | Least-privilege IAM role | `terraform state list` shows an `aws_iam_role` attached to the EC2 instance, allowing read-only access to ECR. |
+| D5 | DuckDNS routing active | `dig yourdomain.duckdns.org +short` resolves exactly to the EC2 instance's public IP. |
+| D6 | Manual Nginx routing correctly configured | `curl http://yourdomain.duckdns.org/api/auth/healthz` returns `200 OK` from the auth container. |
+| D7 | HTTPS active and redirecting | `curl -I https://yourdomain.duckdns.org` returns HTTP 200 without a certificate warning. The browser padlock is confirmed. |
+| D8 | Database deployed and secured | PostgreSQL runs in Docker Compose, its port is bound to `127.0.0.1` on the host, and it is seeded with sample data. |
+| D9 | Backup restore tested | Drop a test row, restore from the backup using `scripts/restore_db.sh`, and confirm that the row reappears. |
+| D10 | CI/CD pipeline automation | Pushing to `main` triggers GitHub Actions to build images, push them to ECR, dynamically update the EC2 security group for the runner IP, connect through SSH, and run `docker compose up -d`. |
+
+## Repository and File Structure
+
+The repository contains the full pre-built application as well as the
+infrastructure work: Terraform configuration, Nginx configuration, backup
+scripts, and CI/CD workflows.
+
+```text
+meridian-retail/
+├── terraform/
+│   ├── main.tf              # VPC, EC2, IAM, and ECR infrastructure
+│   ├── variables.tf         # Region, personal IP, and other variables
+│   └── outputs.tf            # EC2 public IP and VPC IDs
+├── auth-service/
+│   ├── main.py              # Signup, login, and JWT issuance
+│   ├── requirements.txt
+│   ├── Dockerfile
+│   └── tests/test_auth.py
+├── catalog-service/
+│   ├── app.js               # Express + Postgres product listings
+│   ├── package.json
+│   └── Dockerfile
+├── orders-service/
+│   ├── main.py              # Calls auth-service and catalog-service
+│   ├── requirements.txt
+│   └── Dockerfile
+├── frontend/
+│   ├── index.html           # Storefront UI; calls /api/* on the same domain
+│   └── Dockerfile
+├── nginx/
+│   ├── meridian-http.conf   # Phase 1: hand-written HTTP routing config
+│   └── meridian-https-reference.conf # Phase 2: Certbot-generated reference
+├── scripts/
+│   ├── backup_db.sh         # Create PostgreSQL backups
+│   ├── restore_db.sh        # Restore PostgreSQL backups
+│   ├── server_setup.sh      # Bootstrap Docker, Nginx, and Certbot
+│   └── ...
+├── .github/workflows/
+│   ├── ci.yml               # Build and test on every push
+│   └── deploy.yml           # Build, publish, and deploy to EC2
+├── docker-compose.yml
+└── README.md
+```
+
