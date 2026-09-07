@@ -1,0 +1,61 @@
+# ============================================================
+# Meridian Retail - Git Ignore
+# ============================================================
+
+# Secrets and runtime environment files
+.env
+.env.*
+!.env.example
+
+# Terraform working directory and state
+**/.terraform/
+*.tfstate
+*.tfstate.*
+tfplan
+tfplan.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Keep Terraform provider lock file
+!.terraform.lock.hcl
+
+# SSH keys and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local backups
+backups/
+*.dump
+*.backup
+*.sql.gz
+
+# Logs
+*.log
+
+# IDE / editor
+.vscode/
+.idea/
+
+# Operating system
+.DS_Store
+Thumbs.db
+Desktop.ini
