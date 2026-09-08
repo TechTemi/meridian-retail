@@ -1,0 +1,181 @@
+name: meridian-retail
+
+x-db-environment: &db-environment
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_NAME: ${DB_NAME:?DB_NAME is required}
+  DB_USER: ${DB_USER:?DB_USER is required}
+  DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${DB_NAME:?DB_NAME is required}
+      POSTGRES_USER: ${DB_USER:?DB_USER is required}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    networks:
+      - meridian-net
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+
+  auth-service:
+    image: ${AUTH_IMAGE:-meridian-auth:stage2}
+
+    build:
+      context: ./auth-service
+
+    restart: unless-stopped
+
+    environment:
+      <<: *db-environment
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_EXPIRY_MINUTES: ${JWT_EXPIRY_MINUTES:-60}
+
+    ports:
+      - "127.0.0.1:8001:8000"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    networks:
+      - meridian-net
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)\""
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+
+  catalog-service:
+    image: ${CATALOG_IMAGE:-meridian-catalog:stage2}
+
+    build:
+      context: ./catalog-service
+
+    restart: unless-stopped
+
+    environment:
+      <<: *db-environment
+      PORT: "4000"
+
+    ports:
+      - "127.0.0.1:8002:4000"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    networks:
+      - meridian-net
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://127.0.0.1:4000/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+
+  orders-service:
+    image: ${ORDERS_IMAGE:-meridian-orders:stage2}
+
+    build:
+      context: ./orders-service
+
+    restart: unless-stopped
+
+    environment:
+      <<: *db-environment
+      AUTH_SERVICE_URL: http://auth-service:8000
+      CATALOG_SERVICE_URL: http://catalog-service:4000
+
+    ports:
+      - "127.0.0.1:8003:8001"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+
+    networks:
+      - meridian-net
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/healthz', timeout=3)\""
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-meridian-frontend:stage2}
+
+    build:
+      context: ./frontend
+
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:${FRONTEND_HOST_PORT:-8080}:80"
+
+    networks:
+      - meridian-net
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1/ || exit 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+
+volumes:
+  postgres_data:
+    name: meridian-postgres-data
+
+
+networks:
+  meridian-net:
+    name: meridian-net
+    driver: bridge
