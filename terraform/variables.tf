@@ -38,3 +38,36 @@ variable "environment" {
     error_message = "environment must be development, staging, or production."
   }
 }
+
+variable "vpc_cidr" {
+  description = "IPv4 CIDR block assigned to the Meridian Retail VPC."
+  type        = string
+  default     = "10.40.0.0/16"
+
+  validation {
+    condition     = can(cidrnetmask(var.vpc_cidr))
+    error_message = "vpc_cidr must be a valid IPv4 CIDR block."
+  }
+}
+
+variable "public_subnet_cidr" {
+  description = "IPv4 CIDR block assigned to the Meridian public application subnet."
+  type        = string
+  default     = "10.40.1.0/24"
+
+  validation {
+    condition     = can(cidrnetmask(var.public_subnet_cidr))
+    error_message = "public_subnet_cidr must be a valid IPv4 CIDR block."
+  }
+}
+
+variable "availability_zone" {
+  description = "Availability Zone used for the Meridian single-node production deployment."
+  type        = string
+  default     = "us-east-1a"
+
+  validation {
+    condition     = startswith(var.availability_zone, var.aws_region)
+    error_message = "availability_zone must belong to the configured aws_region."
+  }
+}
