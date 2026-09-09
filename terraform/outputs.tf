@@ -43,3 +43,8 @@ output "public_route_table_id" {
   description = "ID of the route table explicitly associated with the public subnet."
   value       = aws_route_table.public.id
 }
+
+output "application_security_group_id" {
+  description = "ID of the security group protecting the Meridian application host."
+  value       = aws_security_group.application.id
+}

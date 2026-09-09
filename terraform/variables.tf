@@ -71,3 +71,17 @@ variable "availability_zone" {
     error_message = "availability_zone must belong to the configured aws_region."
   }
 }
+
+variable "admin_cidr" {
+  description = "Single administrator public IPv4 address permitted to access SSH."
+  type        = string
+
+  validation {
+    condition = (
+      can(cidrnetmask(var.admin_cidr)) &&
+      can(regex("/32$", var.admin_cidr))
+    )
+
+    error_message = "admin_cidr must be a valid single IPv4 address expressed as a /32 CIDR."
+  }
+}
