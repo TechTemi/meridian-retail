@@ -85,3 +85,20 @@ variable "admin_cidr" {
     error_message = "admin_cidr must be a valid single IPv4 address expressed as a /32 CIDR."
   }
 }
+
+variable "ecr_repository_prefix" {
+  description = "Prefix used for Meridian private ECR repository names."
+  type        = string
+  default     = "meridian"
+
+  validation {
+    condition = can(
+      regex(
+        "^[a-z0-9]+(?:[._/-][a-z0-9]+)*$",
+        var.ecr_repository_prefix
+      )
+    )
+
+    error_message = "ecr_repository_prefix must use lowercase ECR-compatible repository-name characters."
+  }
+}

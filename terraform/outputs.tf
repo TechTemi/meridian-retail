@@ -48,3 +48,21 @@ output "application_security_group_id" {
   description = "ID of the security group protecting the Meridian application host."
   value       = aws_security_group.application.id
 }
+
+output "ecr_repository_urls" {
+  description = "Private ECR repository URLs for Meridian application services."
+
+  value = {
+    for service, repository in aws_ecr_repository.service :
+    service => repository.repository_url
+  }
+}
+
+output "ecr_repository_arns" {
+  description = "ARNs of the private Meridian ECR repositories."
+
+  value = {
+    for service, repository in aws_ecr_repository.service :
+    service => repository.arn
+  }
+}
