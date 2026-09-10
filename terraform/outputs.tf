@@ -66,3 +66,13 @@ output "ecr_repository_arns" {
     service => repository.arn
   }
 }
+
+output "backup_bucket_name" {
+  description = "Name of the private S3 bucket used for Meridian PostgreSQL backups."
+  value       = aws_s3_bucket.backups.bucket
+}
+
+output "backup_bucket_arn" {
+  description = "ARN of the private S3 bucket used for Meridian PostgreSQL backups."
+  value       = aws_s3_bucket.backups.arn
+}
