@@ -169,3 +169,17 @@ variable "ec2_ssh_public_key" {
     error_message = "ec2_ssh_public_key must be a valid RSA or ED25519 OpenSSH public key."
   }
 }
+
+variable "root_volume_size_gib" {
+  description = "Size in GiB of the encrypted gp3 root volume for the Meridian application host."
+  type        = number
+  default     = 30
+
+  validation {
+    condition = (
+      var.root_volume_size_gib >= 20 &&
+      var.root_volume_size_gib <= 100
+    )
+    error_message = "root_volume_size_gib must be between 20 and 100 GiB."
+  }
+}

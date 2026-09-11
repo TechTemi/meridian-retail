@@ -29,6 +29,23 @@ resource "aws_instance" "application" {
 
   associate_public_ip_address = false
 
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_protocol_ipv6          = "disabled"
+    http_put_response_hop_limit = 1
+    http_tokens                 = "required"
+    instance_metadata_tags      = "disabled"
+  }
+
+  root_block_device {
+    delete_on_termination = true
+    encrypted             = true
+    volume_size           = var.root_volume_size_gib
+    volume_type           = "gp3"
+    iops                  = 3000
+    throughput            = 125
+  }
+
   tags = {
     Name = "${local.name_prefix}-app"
     Role = "ApplicationHost"
