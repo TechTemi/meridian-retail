@@ -106,3 +106,28 @@ output "github_oidc_provider_arn" {
   description = "ARN of the account-level GitHub Actions OIDC provider."
   value       = local.github_oidc_provider_arn
 }
+
+output "application_instance_id" {
+  description = "ID of the Meridian Ubuntu application EC2 instance."
+  value       = aws_instance.application.id
+}
+
+output "application_private_ip" {
+  description = "Private IPv4 address of the Meridian application EC2 instance."
+  value       = aws_instance.application.private_ip
+}
+
+output "application_ami_id" {
+  description = "Canonical Ubuntu 22.04 AMI used by the Meridian application host."
+  value       = nonsensitive(data.aws_ssm_parameter.ubuntu_2204_ami.value)
+}
+
+output "application_instance_type" {
+  description = "EC2 instance type used by the Meridian application host."
+  value       = aws_instance.application.instance_type
+}
+
+output "application_ssh_key_name" {
+  description = "Name of the EC2 key pair used for Meridian administrator SSH."
+  value       = aws_key_pair.application.key_name
+}

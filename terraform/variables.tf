@@ -142,3 +142,30 @@ variable "create_github_oidc_provider" {
   type        = bool
   default     = false
 }
+
+variable "instance_type" {
+  description = "EC2 instance type used by the Meridian application host."
+  type        = string
+  default     = "t3.small"
+
+  validation {
+    condition     = length(trimspace(var.instance_type)) > 0
+    error_message = "instance_type must not be empty."
+  }
+}
+
+variable "ec2_ssh_public_key" {
+  description = "OpenSSH public key imported into EC2 for Meridian administrator access."
+  type        = string
+
+  validation {
+    condition = can(
+      regex(
+        "^ssh-(rsa|ed25519)[[:space:]]+",
+        trimspace(var.ec2_ssh_public_key)
+      )
+    )
+
+    error_message = "ec2_ssh_public_key must be a valid RSA or ED25519 OpenSSH public key."
+  }
+}
