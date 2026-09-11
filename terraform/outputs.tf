@@ -91,3 +91,18 @@ output "application_instance_profile_name" {
   description = "Name of the EC2 instance profile used by the Meridian application host."
   value       = aws_iam_instance_profile.application.name
 }
+
+output "github_deploy_role_name" {
+  description = "Name of the GitHub Actions OIDC deployment role."
+  value       = aws_iam_role.github_deploy.name
+}
+
+output "github_deploy_role_arn" {
+  description = "ARN of the GitHub Actions OIDC deployment role."
+  value       = aws_iam_role.github_deploy.arn
+}
+
+output "github_oidc_provider_arn" {
+  description = "ARN of the account-level GitHub Actions OIDC provider."
+  value       = local.github_oidc_provider_arn
+}

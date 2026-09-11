@@ -102,3 +102,43 @@ variable "ecr_repository_prefix" {
     error_message = "ecr_repository_prefix must use lowercase ECR-compatible repository-name characters."
   }
 }
+
+variable "github_owner" {
+  description = "GitHub repository owner authorized to deploy Meridian."
+  type        = string
+  default     = "TechTemi"
+}
+
+variable "github_repository" {
+  description = "GitHub repository authorized to deploy Meridian."
+  type        = string
+  default     = "meridian-retail"
+}
+
+variable "github_owner_id" {
+  description = "Immutable numeric GitHub owner ID used in the OIDC subject."
+  type        = string
+  default     = "122737846"
+
+  validation {
+    condition     = can(regex("^[0-9]+$", var.github_owner_id))
+    error_message = "github_owner_id must be a numeric GitHub owner ID."
+  }
+}
+
+variable "github_repository_id" {
+  description = "Immutable numeric GitHub repository ID used in the OIDC subject."
+  type        = string
+  default     = "1360367413"
+
+  validation {
+    condition     = can(regex("^[0-9]+$", var.github_repository_id))
+    error_message = "github_repository_id must be a numeric GitHub repository ID."
+  }
+}
+
+variable "create_github_oidc_provider" {
+  description = "Whether this Terraform root module should create the account-level GitHub Actions OIDC provider."
+  type        = bool
+  default     = false
+}
