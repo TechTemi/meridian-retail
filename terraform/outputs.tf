@@ -76,3 +76,18 @@ output "backup_bucket_arn" {
   description = "ARN of the private S3 bucket used for Meridian PostgreSQL backups."
   value       = aws_s3_bucket.backups.arn
 }
+
+output "application_iam_role_name" {
+  description = "Name of the least-privilege IAM role used by the Meridian EC2 host."
+  value       = aws_iam_role.application.name
+}
+
+output "application_iam_role_arn" {
+  description = "ARN of the least-privilege IAM role used by the Meridian EC2 host."
+  value       = aws_iam_role.application.arn
+}
+
+output "application_instance_profile_name" {
+  description = "Name of the EC2 instance profile used by the Meridian application host."
+  value       = aws_iam_instance_profile.application.name
+}
