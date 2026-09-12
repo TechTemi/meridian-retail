@@ -27,7 +27,6 @@ resource "aws_instance" "application" {
   iam_instance_profile = aws_iam_instance_profile.application.name
   key_name             = aws_key_pair.application.key_name
 
-  associate_public_ip_address = false
 
   metadata_options {
     http_endpoint               = "enabled"
