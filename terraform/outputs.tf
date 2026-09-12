@@ -131,3 +131,13 @@ output "application_ssh_key_name" {
   description = "Name of the EC2 key pair used for Meridian administrator SSH."
   value       = aws_key_pair.application.key_name
 }
+
+output "application_public_ip" {
+  description = "Stable Elastic IPv4 address assigned to the Meridian application host."
+  value       = aws_eip.application.public_ip
+}
+
+output "application_eip_allocation_id" {
+  description = "Allocation ID of the Meridian application Elastic IP."
+  value       = aws_eip.application.allocation_id
+}
