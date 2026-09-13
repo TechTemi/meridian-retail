@@ -9,3 +9,5 @@
 *.tf text eol=lf
 *.tfvars text eol=lf
 *.conf text eol=lf
+.env.example text eol=lf
+ops/deployment/.env.production.example text eol=lf
