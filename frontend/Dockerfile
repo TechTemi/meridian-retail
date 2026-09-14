@@ -1,7 +1,7 @@
-FROM nginx:1.27-alpine
+FROM busybox:1.38.0-musl
 
-COPY index.html /usr/share/nginx/html/index.html
+COPY index.html /www/index.html
 
 EXPOSE 80
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["httpd", "-f", "-p", "80", "-h", "/www"]

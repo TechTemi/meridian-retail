@@ -1,8 +1,10 @@
-FROM node:20-alpine
+FROM node:20.20.2-alpine3.23
 
 ENV NODE_ENV=production
 
 WORKDIR /app
+
+RUN apk upgrade --no-cache
 
 COPY package.json .
 

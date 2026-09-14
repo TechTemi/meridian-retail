@@ -1,12 +1,13 @@
-FROM python:3.12-slim
+FROM python:3.12.14-alpine3.23
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-RUN addgroup --system appgroup \
-    && adduser --system --ingroup appgroup appuser
+RUN apk upgrade --no-cache \
+    && addgroup -S appgroup \
+    && adduser -S -G appgroup appuser
 
 COPY requirements.txt .
 
