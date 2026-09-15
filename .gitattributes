@@ -9,3 +9,7 @@
 *.tf text eol=lf
 *.tfvars text eol=lf
 *.conf text eol=lf
+.env.example text eol=lf
+ops/deployment/.env.production.example text eol=lf
+ops/validation/Invoke-MeridianStage6Gate.ps1 text eol=lf
+ops/validation/stage6-invariants.json text eol=lf
