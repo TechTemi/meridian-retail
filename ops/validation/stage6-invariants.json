@@ -1,0 +1,227 @@
+{
+    "schema_version":  1,
+    "project":  "meridian-retail",
+    "stage":  6,
+    "invariants":  [
+                       {
+                           "id":  "INV-RELEASE-ID",
+                           "value":  "full-40-character-lowercase-git-sha"
+                       },
+                       {
+                           "id":  "INV-FRONTEND-RUNTIME",
+                           "value":  "scratch-busybox-shellless"
+                       },
+                       {
+                           "id":  "INV-RUNTIME-PLATFORM",
+                           "value":  "linux/amd64"
+                       },
+                       {
+                           "id":  "INV-POSTGRES-IDENTITY",
+                           "value":  "immutable-sha256-digest"
+                       },
+                       {
+                           "id":  "INV-IMAGE-ACQUISITION",
+                           "value":  "pull-once-then-up-no-build-no-pull"
+                       },
+                       {
+                           "id":  "INV-RUNTIME-ENV",
+                           "value":  "exact-five-db-jwt-keys"
+                       },
+                       {
+                           "id":  "INV-PRODUCTION-PORTS",
+                           "value":  "loopback-8001-8002-8003-8080-postgres-unpublished"
+                       }
+                   ],
+    "dependencies":  [
+                         {
+                             "invariant":  "INV-FRONTEND-RUNTIME",
+                             "dependents":  [
+                                                "frontend/Dockerfile",
+                                                "docker-compose.production.yml:frontend.healthcheck",
+                                                "runtime-probe-commands"
+                                            ]
+                         },
+                         {
+                             "invariant":  "INV-RELEASE-ID",
+                             "dependents":  [
+                                                "deploy-production.sh:IMAGE_TAG-validation",
+                                                "application-image-tags",
+                                                "publication-release-identity"
+                                            ]
+                         },
+                         {
+                             "invariant":  "INV-RUNTIME-PLATFORM",
+                             "dependents":  [
+                                                "all-five-compose-services",
+                                                "tested-artifact-platform",
+                                                "publication-runtime-child"
+                                            ]
+                         },
+                         {
+                             "invariant":  "INV-POSTGRES-IDENTITY",
+                             "dependents":  [
+                                                "docker-compose.production.yml:postgres.image",
+                                                "integration-tested-postgres-artifact",
+                                                "production-dependency-acquisition"
+                                            ]
+                         },
+                         {
+                             "invariant":  "INV-IMAGE-ACQUISITION",
+                             "dependents":  [
+                                                "docker-compose-pull",
+                                                "docker-compose-up",
+                                                "ecr-login",
+                                                "ecr-logout",
+                                                "artifact-continuity"
+                                            ]
+                         },
+                         {
+                             "invariant":  "INV-RUNTIME-ENV",
+                             "dependents":  [
+                                                ".env.production.example",
+                                                "compose-required-interpolation",
+                                                "deploy-process-environment"
+                                            ]
+                         },
+                         {
+                             "invariant":  "INV-PRODUCTION-PORTS",
+                             "dependents":  [
+                                                "compose-host-bindings",
+                                                "postgres-internal-only",
+                                                "host-nginx-stage7-contract"
+                                            ]
+                         }
+                     ],
+    "mir_coverage":  [
+                         {
+                             "id":  "MIR-001",
+                             "applicability":  "not-applicable",
+                             "control":  "No runtime port mutation in source-remediation gate"
+                         },
+                         {
+                             "id":  "MIR-002",
+                             "applicability":  "not-applicable",
+                             "control":  "Terraform not touched"
+                         },
+                         {
+                             "id":  "MIR-003",
+                             "applicability":  "applicable",
+                             "control":  "VAL-SECRET-SCHEMA"
+                         },
+                         {
+                             "id":  "MIR-004",
+                             "applicability":  "applicable",
+                             "control":  "VAL-GIT-EOL"
+                         },
+                         {
+                             "id":  "MIR-005",
+                             "applicability":  "not-applicable",
+                             "control":  "Application artifact inputs unchanged"
+                         },
+                         {
+                             "id":  "MIR-006",
+                             "applicability":  "not-applicable",
+                             "control":  "No vulnerability disposition changed"
+                         },
+                         {
+                             "id":  "MIR-007",
+                             "applicability":  "applicable",
+                             "control":  "VAL-FRONTEND-RUNTIME"
+                         },
+                         {
+                             "id":  "MIR-008",
+                             "applicability":  "applicable",
+                             "control":  "VAL-RUNTIME-PLATFORM"
+                         },
+                         {
+                             "id":  "MIR-009",
+                             "applicability":  "not-applicable",
+                             "control":  "No AWS output parsing in permanent source validator"
+                         },
+                         {
+                             "id":  "MIR-010",
+                             "applicability":  "not-applicable",
+                             "control":  "No expected-missing Docker inspect"
+                         },
+                         {
+                             "id":  "MIR-011",
+                             "applicability":  "not-applicable",
+                             "control":  "No alternate Git hashing"
+                         },
+                         {
+                             "id":  "MIR-012",
+                             "applicability":  "not-applicable",
+                             "control":  "No scratch-purity measurement in source gate"
+                         },
+                         {
+                             "id":  "MIR-013",
+                             "applicability":  "applicable",
+                             "control":  "VAL-TEMP-CLEANUP"
+                         },
+                         {
+                             "id":  "MIR-014",
+                             "applicability":  "applicable",
+                             "control":  "VAL-CONFIG-SOURCES"
+                         },
+                         {
+                             "id":  "MIR-015",
+                             "applicability":  "applicable",
+                             "control":  "VAL-EXACT-GENERATED-SYNTAX"
+                         },
+                         {
+                             "id":  "MIR-016",
+                             "applicability":  "applicable",
+                             "control":  "VAL-EXPLICIT-PROPERTIES"
+                         },
+                         {
+                             "id":  "MIR-017",
+                             "applicability":  "applicable",
+                             "control":  "VAL-GUARANTEED-CLEANUP"
+                         },
+                         {
+                             "id":  "MIR-018",
+                             "applicability":  "applicable",
+                             "control":  "VAL-CANONICAL-RESOURCE-CONTRACT"
+                         },
+                         {
+                             "id":  "MIR-019",
+                             "applicability":  "not-applicable",
+                             "control":  "No empty mandatory collection binding"
+                         },
+                         {
+                             "id":  "MIR-020",
+                             "applicability":  "applicable",
+                             "control":  "VAL-FRONTEND-HEALTH"
+                         },
+                         {
+                             "id":  "MIR-021",
+                             "applicability":  "applicable",
+                             "control":  "VAL-DEPENDENCY-PROPAGATION"
+                         },
+                         {
+                             "id":  "MIR-022",
+                             "applicability":  "applicable",
+                             "control":  "Invoke-MeridianStage6Gate.ps1"
+                         },
+                         {
+                             "id":  "MIR-023",
+                             "applicability":  "applicable",
+                             "control":  "VAL-NO-UNKNOWN"
+                         },
+                         {
+                             "id":  "MIR-024",
+                             "applicability":  "applicable",
+                             "control":  "VAL-FULL-SHA"
+                         },
+                         {
+                             "id":  "MIR-025",
+                             "applicability":  "applicable",
+                             "control":  "VAL-IMMUTABLE-POSTGRES"
+                         },
+                         {
+                             "id":  "MIR-026",
+                             "applicability":  "applicable",
+                             "control":  "POWERSHELL-PARSER-PREFLIGHT"
+                         }
+                     ]
+}

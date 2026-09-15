@@ -10,7 +10,8 @@ x-db-environment: &db-environment
 services:
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+    platform: linux/amd64
     restart: unless-stopped
 
     environment:
@@ -38,6 +39,7 @@ services:
 
   auth-service:
     image: ${ECR_REGISTRY:?ECR_REGISTRY is required}/meridian/auth:${IMAGE_TAG:?IMAGE_TAG is required}
+    platform: linux/amd64
     pull_policy: always
     restart: unless-stopped
 
@@ -70,6 +72,7 @@ services:
 
   catalog-service:
     image: ${ECR_REGISTRY:?ECR_REGISTRY is required}/meridian/catalog:${IMAGE_TAG:?IMAGE_TAG is required}
+    platform: linux/amd64
     pull_policy: always
     restart: unless-stopped
 
@@ -101,6 +104,7 @@ services:
 
   orders-service:
     image: ${ECR_REGISTRY:?ECR_REGISTRY is required}/meridian/orders:${IMAGE_TAG:?IMAGE_TAG is required}
+    platform: linux/amd64
     pull_policy: always
     restart: unless-stopped
 
@@ -137,6 +141,7 @@ services:
 
   frontend:
     image: ${ECR_REGISTRY:?ECR_REGISTRY is required}/meridian/frontend:${IMAGE_TAG:?IMAGE_TAG is required}
+    platform: linux/amd64
     pull_policy: always
     restart: unless-stopped
 
@@ -149,8 +154,13 @@ services:
     healthcheck:
       test:
         [
-          "CMD-SHELL",
-          "wget -q -O /dev/null http://127.0.0.1/ || exit 1"
+          "CMD",
+          "/busybox",
+          "wget",
+          "-q",
+          "-O",
+          "/dev/null",
+          "http://127.0.0.1/"
         ]
       interval: 10s
       timeout: 5s

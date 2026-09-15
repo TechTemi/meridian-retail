@@ -18,7 +18,7 @@ fi
 
 IMAGE_TAG="$1"
 
-if [[ ! "${IMAGE_TAG}" =~ ^[0-9a-f]{7,40}$ ]]; then
+if [[ ! "${IMAGE_TAG}" =~ ^[0-9a-f]{40}$ ]]; then
     printf 'ERROR: image tag must be a Git commit SHA.\n' >&2
     exit 65
 fi
@@ -58,6 +58,27 @@ export AWS_REGION
 export ECR_REGISTRY
 export IMAGE_TAG
 
+ECR_LOGGED_IN=0
+
+cleanup_ecr_login() {
+    local exit_code=$?
+
+    if [[ "${ECR_LOGGED_IN}" -eq 1 ]]; then
+        if ! docker logout "${ECR_REGISTRY}" >/dev/null 2>&1; then
+            printf 'ERROR: unable to clear ECR Docker login state.\n' >&2
+
+            if [[ "${exit_code}" -eq 0 ]]; then
+                exit_code=73
+            fi
+        fi
+    fi
+
+    trap - EXIT
+    exit "${exit_code}"
+}
+
+trap cleanup_ecr_login EXIT
+
 aws ecr get-login-password \
     --region "${AWS_REGION}" |
 docker login \
@@ -65,6 +86,8 @@ docker login \
     --password-stdin \
     "${ECR_REGISTRY}" \
     >/dev/null
+
+ECR_LOGGED_IN=1
 
 docker compose \
     --env-file "${ENV_FILE}" \
@@ -75,13 +98,23 @@ docker compose \
 docker compose \
     --env-file "${ENV_FILE}" \
     -f "${COMPOSE_FILE}" \
-    pull
+    pull \
+    --policy always
+
+if ! docker logout "${ECR_REGISTRY}" >/dev/null; then
+    printf 'ERROR: unable to clear ECR Docker login state after image acquisition.\n' >&2
+    exit 73
+fi
+
+ECR_LOGGED_IN=0
 
 docker compose \
     --env-file "${ENV_FILE}" \
     -f "${COMPOSE_FILE}" \
     up \
     -d \
+    --no-build \
+    --pull never \
     --remove-orphans \
     --wait \
     --wait-timeout 180
