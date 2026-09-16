@@ -13,3 +13,9 @@
 ops/deployment/.env.production.example text eol=lf
 ops/validation/Invoke-MeridianStage6Gate.ps1 text eol=lf
 ops/validation/stage6-invariants.json text eol=lf
+# Stage 7/D7 Windows checkout determinism
+.gitattributes text eol=lf
+docs/routing-explained.md text eol=lf
+ops/validation/Invoke-MeridianStage7SourceGate.ps1 text eol=lf
+docs/tls-explained.md text eol=lf
+ops/validation/Invoke-MeridianD7SourceGate.ps1 text eol=lf
