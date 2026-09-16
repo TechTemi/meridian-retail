@@ -239,21 +239,78 @@ cmp -s \
 
 test -x "${DEPLOY_HOOK_TARGET}"
 
+port_is_listening() {
+
+    local port="${1:?port required}"
+
+    ss -ltnH |
+    awk -v port="${port}" '
+        $4 ~ (":" port "$") {
+            found = 1
+        }
+
+        END {
+            exit(found ? 0 : 1)
+        }
+    '
+}
+
+
+wait_for_listener_present() {
+
+    local port="${1:?port required}"
+    local attempts="${2:-40}"
+    local delay="${3:-0.25}"
+    local attempt
+
+    for ((attempt=1; attempt<=attempts; attempt++)); do
+
+        if port_is_listening "${port}"; then
+            return 0
+        fi
+
+        sleep "${delay}"
+    done
+
+    return 1
+}
+
+
+wait_for_listener_absent() {
+
+    local port="${1:?port required}"
+    local attempts="${2:-40}"
+    local delay="${3:-0.25}"
+    local attempt
+
+    for ((attempt=1; attempt<=attempts; attempt++)); do
+
+        if ! port_is_listening "${port}"; then
+            return 0
+        fi
+
+        sleep "${delay}"
+    done
+
+    return 1
+}
+
+
 if [ "${MODE}" = "acme" ]; then
 
-    if ss -ltnH |
-        awk '{print $4}' |
-        grep -Eq '(^|:)443$'
-    then
-        fail "HTTPS listener appeared during ACME-only installation."
-    fi
+    wait_for_listener_absent \
+        443 \
+        40 \
+        0.25 \
+        || fail "HTTPS listener remained active after ACME installation."
 
 else
 
-    ss -ltnH |
-        awk '{print $4}' |
-        grep -Eq '(^|:)443$' \
-        || fail "HTTPS listener is absent after HTTPS installation."
+    wait_for_listener_present \
+        443 \
+        40 \
+        0.25 \
+        || fail "HTTPS listener did not converge after HTTPS installation."
 fi
 
 trap - EXIT

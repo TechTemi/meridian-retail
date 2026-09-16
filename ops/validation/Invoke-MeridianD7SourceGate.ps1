@@ -254,6 +254,25 @@ Assert-True `
         'systemctl restart nginx'
     )) `
     "installer must reload, not restart."
+foreach ($Fragment in @(
+    'port_is_listening()',
+    'wait_for_listener_present()',
+    'wait_for_listener_absent()',
+    'sleep "${delay}"',
+    'HTTPS listener did not converge after HTTPS installation.'
+)) {
+
+    Assert-True `
+        ($Installer.Contains($Fragment)) `
+        "listener-convergence safety missing: $Fragment"
+}
+
+
+Assert-True `
+    (-not $Installer.Contains(
+        "grep -Eq '(^|:)443$'"
+    )) `
+    "brittle grep-q listener assertion must not return."
 
 
 # Deploy hook contract.
