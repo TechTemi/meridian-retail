@@ -1,11 +1,9 @@
 name: meridian-retail
 
-x-db-environment: &db-environment
+x-db-common: &db-common
   DB_HOST: postgres
   DB_PORT: "5432"
   DB_NAME: ${DB_NAME:?DB_NAME is required}
-  DB_USER: ${DB_USER:?DB_USER is required}
-  DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
 
 services:
 
@@ -16,8 +14,8 @@ services:
 
     environment:
       POSTGRES_DB: ${DB_NAME:?DB_NAME is required}
-      POSTGRES_USER: ${DB_USER:?DB_USER is required}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      POSTGRES_USER: ${DB_ADMIN_USER:?DB_ADMIN_USER is required}
+      POSTGRES_PASSWORD: ${DB_ADMIN_PASSWORD:?DB_ADMIN_PASSWORD is required}
 
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -44,7 +42,9 @@ services:
     restart: unless-stopped
 
     environment:
-      <<: *db-environment
+      <<: *db-common
+      DB_USER: ${AUTH_DB_USER:?AUTH_DB_USER is required}
+      DB_PASSWORD: ${AUTH_DB_PASSWORD:?AUTH_DB_PASSWORD is required}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       JWT_EXPIRY_MINUTES: ${JWT_EXPIRY_MINUTES:-60}
 
@@ -77,7 +77,9 @@ services:
     restart: unless-stopped
 
     environment:
-      <<: *db-environment
+      <<: *db-common
+      DB_USER: ${CATALOG_DB_USER:?CATALOG_DB_USER is required}
+      DB_PASSWORD: ${CATALOG_DB_PASSWORD:?CATALOG_DB_PASSWORD is required}
       PORT: "4000"
 
     ports:
@@ -109,7 +111,9 @@ services:
     restart: unless-stopped
 
     environment:
-      <<: *db-environment
+      <<: *db-common
+      DB_USER: ${ORDERS_DB_USER:?ORDERS_DB_USER is required}
+      DB_PASSWORD: ${ORDERS_DB_PASSWORD:?ORDERS_DB_PASSWORD is required}
       AUTH_SERVICE_URL: http://auth-service:8000
       CATALOG_SERVICE_URL: http://catalog-service:4000
 
@@ -119,8 +123,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
       auth-service:
         condition: service_healthy
+
       catalog-service:
         condition: service_healthy
 
