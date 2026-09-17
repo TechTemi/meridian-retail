@@ -1,0 +1,22 @@
+[Unit]
+Description=Meridian Retail PostgreSQL daily backup
+Requires=docker.service
+After=docker.service
+ConditionPathExists=/opt/meridian/app/scripts/backup_db.sh
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+SupplementaryGroups=docker
+WorkingDirectory=/opt/meridian/app
+Environment=POSTGRES_CONTAINER=meridian-retail-postgres-1
+Environment=MERIDIAN_ROOT=/opt/meridian
+Environment=BACKUP_DIR=/opt/meridian/backups/d9
+ExecStart=/opt/meridian/app/scripts/backup_db.sh
+UMask=0077
+TimeoutStartSec=15min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
