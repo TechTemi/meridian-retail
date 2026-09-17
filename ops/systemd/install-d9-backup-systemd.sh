@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 set -Eeuo pipefail
-umask 022
+umask 077
 
 fail() {
     printf 'ERROR: %s\n' "$*" >&2
@@ -36,6 +36,11 @@ done
 
 id ubuntu >/dev/null 2>&1 ||
     fail "required service account absent: ubuntu"
+
+primary_group="$(id -gn ubuntu)"
+
+[[ "${primary_group}" == "ubuntu" ]] ||
+    fail "ubuntu primary group is not ubuntu: ${primary_group}"
 
 getent group docker >/dev/null 2>&1 ||
     fail "required docker group absent"
@@ -72,6 +77,9 @@ case "${backup_mode}" in
         fail "production backup directory mode is not restrictive: ${backup_mode}"
         ;;
 esac
+
+[[ ! -e "${PRODUCTION_BACKUP_SCRIPT}" ]] ||
+    fail "production backup script target already exists: ${PRODUCTION_BACKUP_SCRIPT}"
 
 [[ ! -e "${SERVICE_TARGET}" ]] ||
     fail "service target already exists: ${SERVICE_TARGET}"

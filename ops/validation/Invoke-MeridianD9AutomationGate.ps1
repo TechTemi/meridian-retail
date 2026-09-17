@@ -182,6 +182,86 @@ foreach ($Contract in @(
         -Description $Contract[1]
 }
 
+# ------------------------------------------------------------
+# Installer safety contract
+# ------------------------------------------------------------
+
+Require-Text `
+    -Content $Installer `
+    -Pattern '(?m)^set -Eeuo pipefail$' `
+    -Description "installer strict Bash contract absent."
+
+Require-Text `
+    -Content $Installer `
+    -Pattern '(?m)^umask 077$' `
+    -Description "installer restrictive umask absent."
+
+Forbid-Text `
+    -Content $Installer `
+    -Pattern '(?m)^umask 022$' `
+    -Description "installer must not use umask 022."
+
+Require-Text `
+    -Content $Installer `
+    -Pattern '(?m)^primary_group="\$\(id -gn ubuntu\)"$' `
+    -Description "installer ubuntu primary-group discovery absent."
+
+Require-Text `
+    -Content $Installer `
+    -Pattern '(?m)^\[\[ "\$\{primary_group\}" == "ubuntu" \]\] \|\|$' `
+    -Description "installer ubuntu primary-group guard absent."
+
+Require-Text `
+    -Content $Installer `
+    -Pattern '(?m)^\[\[ ! -e "\$\{PRODUCTION_BACKUP_SCRIPT\}" \]\] \|\|$' `
+    -Description "installer production backup target guard absent."
+
+Require-Text `
+    -Content $Installer `
+    -Pattern 'production backup script target already exists:' `
+    -Description "installer production backup target fail message absent."
+
+$BackupGuardMatch =
+    [regex]::Match(
+        $Installer,
+        '(?m)^\[\[ ! -e "\$\{PRODUCTION_BACKUP_SCRIPT\}" \]\] \|\|$'
+    )
+
+$ServiceGuardMatch =
+    [regex]::Match(
+        $Installer,
+        '(?m)^\[\[ ! -e "\$\{SERVICE_TARGET\}" \]\] \|\|$'
+    )
+
+$TimerGuardMatch =
+    [regex]::Match(
+        $Installer,
+        '(?m)^\[\[ ! -e "\$\{TIMER_TARGET\}" \]\] \|\|$'
+    )
+
+$FirstInstallMatch =
+    [regex]::Match(
+        $Installer,
+        '(?m)^install \\$'
+    )
+
+if (-not $FirstInstallMatch.Success) {
+    Fail-Gate "installer first write operation cannot be located."
+}
+
+foreach ($Guard in @(
+    $BackupGuardMatch,
+    $ServiceGuardMatch,
+    $TimerGuardMatch
+)) {
+    if (-not $Guard.Success) {
+        Fail-Gate "installer target guard cannot be located."
+    }
+
+    if ($Guard.Index -ge $FirstInstallMatch.Index) {
+        Fail-Gate "installer target guard occurs after first write."
+    }
+}
 Forbid-Text `
     -Content $Installer `
     -Pattern '(?i)systemctl\s+enable\s+--now\s+meridian-db-backup\.timer' `
