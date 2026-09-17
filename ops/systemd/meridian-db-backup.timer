@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Meridian Retail PostgreSQL backup daily
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+Unit=meridian-db-backup.service
+
+[Install]
+WantedBy=timers.target
