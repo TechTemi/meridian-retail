@@ -79,6 +79,16 @@ Its local and remote SHA-256 values must match before execution.
 
 The temporary remote script is removed after the deployment attempt.
 
+## Production Compose drift interlock
+
+The deployment helper does not copy or modify the production Compose file.
+
+Before the production deployment entry point executes, the helper hashes the checked-out `ops/deployment/docker-compose.production.yml` file and independently hashes `/opt/meridian/app/docker-compose.production.yml` over the existing pinned-host SSH channel.
+
+Both SHA-256 values must be valid 64-character lowercase hexadecimal digests and must match exactly. A missing file, SSH/hash failure, invalid digest, or mismatch fails closed before deployment execution.
+
+When the source-controlled and live production Compose files match, the helper emits `PRODUCTION_COMPOSE_DRIFT_CHECK=PASS`.
+
 ## Production runtime boundary
 
 Production continues to use:

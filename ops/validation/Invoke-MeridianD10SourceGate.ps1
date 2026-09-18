@@ -11,6 +11,15 @@ $ExpectedBranch =
 $D9Merge =
     "0a825def4fb507bd3b6bf215571386acbb34df92"
 
+$D10ImplementationCommit =
+    "804f3a8ff9da4dea801e52703c08e3d42f8c7b7b"
+
+$RemediationFiles = @(
+    "docs/ci-cd.md",
+    "ops/deployment/github-actions-production-deploy.sh",
+    "ops/validation/Invoke-MeridianD10SourceGate.ps1"
+) | Sort-Object
+
 $ExpectedFiles = @(
     ".github/workflows/deploy.yml",
     "docs/ci-cd.md",
@@ -107,27 +116,111 @@ foreach ($Path in $NewFiles) {
 
 Write-Host "PASS D10-GATE-2: new D10 artifacts are LF-only and BOM-free."
 
+$CurrentHead =
+    (git rev-parse HEAD).Trim()
+
+$ExpectedObservedPaths = @()
+
+if ($CurrentHead -eq $D9Merge) {
+
+    $Gate3Mode =
+        "INITIAL_D10_WORKTREE"
+
+    $ExpectedObservedPaths =
+        @($ExpectedFiles)
+}
+elseif ($CurrentHead -eq $D10ImplementationCommit) {
+
+    $Gate3Mode =
+        "D10_COMPOSE_REMEDIATION_WORKTREE"
+
+    $ExpectedObservedPaths =
+        @($RemediationFiles)
+}
+else {
+
+    git merge-base --is-ancestor `
+        $D10ImplementationCommit `
+        $CurrentHead
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "FAIL D10-GATE-3: HEAD is outside qualified D10 history."
+    }
+
+    $Gate3Mode =
+        "D10_COMPOSE_REMEDIATION_COMMITTED"
+
+    $CommittedRemediationPaths = @(
+        git diff `
+            --name-only `
+            $D10ImplementationCommit `
+            $CurrentHead `
+            --
+    ) |
+        ForEach-Object {
+            ([string]$_).Trim()
+        } |
+        Where-Object {
+            $_ -ne ""
+        } |
+        Sort-Object -Unique
+
+    if (
+        @(
+            Compare-Object `
+                $RemediationFiles `
+                $CommittedRemediationPaths
+        ).Count -ne 0
+    ) {
+        Write-Host "EXPECTED COMMITTED REMEDIATION FILES:"
+
+        $RemediationFiles |
+            ForEach-Object {
+                Write-Host "  $_"
+            }
+
+        Write-Host "OBSERVED COMMITTED REMEDIATION FILES:"
+
+        $CommittedRemediationPaths |
+            ForEach-Object {
+                Write-Host "  $_"
+            }
+
+        throw "FAIL D10-GATE-3: committed remediation surface differs."
+    }
+
+    $ExpectedObservedPaths = @()
+}
+
 $StatusRows = @(
-    git status --porcelain=v1 --untracked-files=all
+    git status `
+        --porcelain=v1 `
+        --untracked-files=all
 )
 
-$ObservedPaths = @()
+$ObservedPaths =
+    New-Object System.Collections.Generic.List[string]
 
 foreach ($Row in $StatusRows) {
-    $Text = [string]$Row
+
+    $Text =
+        [string]$Row
 
     if ($Text.Length -lt 4) {
         throw "FAIL D10-GATE-3: malformed Git status row."
     }
 
-    $Path = $Text.Substring(3).Trim('"')
+    $Path =
+        $Text.Substring(3).Trim('"')
 
     if ($Path.Contains(" -> ")) {
         $Path =
-            ($Path -split ' -> ', 2)[1].Trim('"')
+            ($Path -split ' -> ')[-1].Trim('"')
     }
 
-    $ObservedPaths += $Path
+    if (-not [string]::IsNullOrWhiteSpace($Path)) {
+        $ObservedPaths.Add($Path)
+    }
 }
 
 $ObservedPaths =
@@ -136,23 +229,39 @@ $ObservedPaths =
             Sort-Object -Unique
     )
 
+$ExpectedObservedPaths =
+    @(
+        $ExpectedObservedPaths |
+            Sort-Object -Unique
+    )
+
+Write-Host "D10_GATE_3_MODE=$Gate3Mode"
+
 if (
     @(
         Compare-Object `
-            $ExpectedFiles `
+            $ExpectedObservedPaths `
             $ObservedPaths
     ).Count -ne 0
 ) {
     Write-Host "EXPECTED:"
-    $ExpectedFiles | ForEach-Object { Write-Host "  $_" }
+
+    $ExpectedObservedPaths |
+        ForEach-Object {
+            Write-Host "  $_"
+        }
 
     Write-Host "OBSERVED:"
-    $ObservedPaths | ForEach-Object { Write-Host "  $_" }
 
-    throw "FAIL D10-GATE-3: mutation surface differs from six-file freeze."
+    $ObservedPaths |
+        ForEach-Object {
+            Write-Host "  $_"
+        }
+
+    throw "FAIL D10-GATE-3: phase-aware source surface differs."
 }
 
-Write-Host "PASS D10-GATE-3: mutation surface is exactly six files."
+Write-Host "PASS D10-GATE-3: phase-aware mutation/commit surface passes."
 
 $Workflow =
     Get-Content `
@@ -247,6 +356,11 @@ foreach ($Required in @(
     "ops/deployment/deploy-production.sh",
     "sha256sum",
     "REMOTE_DEPLOY_SCRIPT_SHA256=QUALIFIED",
+    "ops/deployment/docker-compose.production.yml",
+    "/opt/meridian/app/docker-compose.production.yml",
+    "PRODUCTION_COMPOSE_DRIFT_CHECK=PASS",
+    "production Compose drift detected; deployment blocked.",
+    'if [[ "${remote_compose_sha}" != "${local_compose_sha}" ]]; then',
     "MERIDIAN_PRODUCTION_DEPLOYMENT=SUCCESS",
     "MERIDIAN_GITHUB_ACTIONS_DEPLOYMENT=SUCCESS"
 )) {
@@ -273,6 +387,54 @@ foreach ($Forbidden in @(
         -Gate "D10-GATE-5"
 }
 
+$ComposePathReferenceCount =
+    [regex]::Matches(
+        $Helper,
+        [regex]::Escape("docker-compose.production.yml")
+    ).Count
+
+if ($ComposePathReferenceCount -ne 2) {
+    throw (
+        "FAIL D10-GATE-5: expected exactly two production " +
+        "Compose-path references in helper."
+    )
+}
+
+$ComposeShaValidationCount =
+    [regex]::Matches(
+        $Helper,
+        [regex]::Escape('^[0-9a-f]{64}$')
+    ).Count
+
+if ($ComposeShaValidationCount -lt 2) {
+    throw (
+        "FAIL D10-GATE-5: both local and remote Compose " +
+        "SHA-256 values must be format-validated."
+    )
+}
+
+$ComposeDriftPassIndex =
+    $Helper.IndexOf(
+        "PRODUCTION_COMPOSE_DRIFT_CHECK=PASS"
+    )
+
+$DeployTransportIndex =
+    $Helper.IndexOf(
+        'LOCAL_DEPLOY_SCRIPT="ops/deployment/deploy-production.sh"'
+    )
+
+if (
+    $ComposeDriftPassIndex -lt 0 -or
+    $DeployTransportIndex -lt 0 -or
+    $ComposeDriftPassIndex -ge $DeployTransportIndex
+) {
+    throw (
+        "FAIL D10-GATE-5: production Compose drift check " +
+        "must complete before deployment-script transport."
+    )
+}
+
+Write-Host "PASS D10-GATE-5A: production Compose drift interlock passes."
 Write-Host "PASS D10-GATE-5: helper matches qualified IAM and fail-closed contracts."
 
 $KnownHosts =
@@ -362,6 +524,17 @@ foreach ($Required in @(
         -Gate "D10-GATE-8"
 }
 
+foreach ($Required in @(
+    "Production Compose drift interlock",
+    "ops/deployment/docker-compose.production.yml",
+    "/opt/meridian/app/docker-compose.production.yml",
+    "PRODUCTION_COMPOSE_DRIFT_CHECK=PASS"
+)) {
+    Assert-Contains `
+        -Text $Docs `
+        -Expected $Required `
+        -Gate "D10-GATE-8"
+}
 $Readme =
     Get-Content `
         -LiteralPath "README.md" `

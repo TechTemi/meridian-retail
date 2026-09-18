@@ -15,6 +15,7 @@ GITHUB_SHA="${GITHUB_SHA:?GITHUB_SHA is required}"
 GITHUB_RUN_ID="${GITHUB_RUN_ID:?GITHUB_RUN_ID is required}"
 GITHUB_RUN_ATTEMPT="${GITHUB_RUN_ATTEMPT:?GITHUB_RUN_ATTEMPT is required}"
 RUNNER_TEMP="${RUNNER_TEMP:?RUNNER_TEMP is required}"
+LOCAL_PRODUCTION_COMPOSE="ops/deployment/docker-compose.production.yml"
 
 if [[ ! "${GITHUB_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
   echo "FAIL: GITHUB_SHA must be a full 40-character lowercase Git SHA." >&2
@@ -51,6 +52,7 @@ done
 for file in \
   "${SSH_KEY_PATH}" \
   "${KNOWN_HOSTS_PATH}" \
+  "${LOCAL_PRODUCTION_COMPOSE}" \
   "ops/deployment/deploy-production.sh"
 do
   [[ -f "${file}" ]] || {
@@ -503,7 +505,45 @@ ssh \
   'printf "%s\n" "PINNED_SSH_CONNECTIVITY=PASS"'
 
 # -----------------------------------------------------------------
-# 8. Transport exact source-controlled deployment script.
+# 8. Fail closed on production Compose drift.
+# -----------------------------------------------------------------
+
+local_compose_sha="$(
+  sha256sum "${LOCAL_PRODUCTION_COMPOSE}" |
+    awk '{print $1}'
+)"
+
+if [[ ! "${local_compose_sha}" =~ ^[0-9a-f]{64}$ ]]; then
+  echo "FAIL: source production Compose SHA-256 is invalid." >&2
+  exit 35
+fi
+
+if ! remote_compose_sha_line="$(
+  ssh \
+    "${SSH_OPTS[@]}" \
+    "${PRODUCTION_USER}@${PRODUCTION_HOST}" \
+    'sha256sum -- /opt/meridian/app/docker-compose.production.yml'
+)"; then
+  echo "FAIL: unable to hash live production Compose file." >&2
+  exit 36
+fi
+
+remote_compose_sha="${remote_compose_sha_line%% *}"
+
+if [[ ! "${remote_compose_sha}" =~ ^[0-9a-f]{64}$ ]]; then
+  echo "FAIL: live production Compose SHA-256 is invalid." >&2
+  exit 37
+fi
+
+if [[ "${remote_compose_sha}" != "${local_compose_sha}" ]]; then
+  echo "FAIL: production Compose drift detected; deployment blocked." >&2
+  exit 38
+fi
+
+echo "PRODUCTION_COMPOSE_DRIFT_CHECK=PASS"
+
+# -----------------------------------------------------------------
+# 9. Transport exact source-controlled deployment script.
 # -----------------------------------------------------------------
 
 LOCAL_DEPLOY_SCRIPT="ops/deployment/deploy-production.sh"
@@ -537,7 +577,7 @@ fi
 echo "REMOTE_DEPLOY_SCRIPT_SHA256=QUALIFIED"
 
 # -----------------------------------------------------------------
-# 9. Execute qualified production deployment entry point.
+# 10. Execute qualified production deployment entry point.
 # -----------------------------------------------------------------
 
 # REMOTE_SCRIPT and GITHUB_SHA are validated locally before remote execution.
@@ -562,7 +602,7 @@ fi
 echo "PRODUCTION_DEPLOYMENT_MARKER=QUALIFIED"
 
 # -----------------------------------------------------------------
-# 10. Explicit successful cleanup.
+# 11. Explicit successful cleanup.
 # -----------------------------------------------------------------
 
 if ! cleanup_remote_script; then
