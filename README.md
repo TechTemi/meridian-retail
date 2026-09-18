@@ -139,3 +139,12 @@ meridian-retail/
 └── README.md
 ```
 
+
+## D10 Production CI/CD
+
+Production delivery is implemented in `.github/workflows/deploy.yml`.
+A push to `main` builds the four application images, publishes the immutable full-SHA release set to Amazon ECR, temporarily authorizes the GitHub runner for SSH, and invokes the qualified production deployment entry point.
+
+AWS authentication uses GitHub OIDC. Production database and JWT secrets remain host-resident and are not stored in GitHub.
+
+See `docs/ci-cd.md` for release identity, ECR fail-closed behavior, SSH trust, temporary-ingress cleanup, deployment, and rollback boundaries.

@@ -1,0 +1,279 @@
+name: Meridian Production CI/CD
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: meridian-production-deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::058264478705:role/meridian-retail-production-github-deploy-role
+  ECR_REGISTRY: 058264478705.dkr.ecr.us-east-1.amazonaws.com
+  PRODUCTION_SECURITY_GROUP_ID: sg-0833c875849be9572
+  PRODUCTION_HOST: 98.88.168.236
+  PRODUCTION_USER: ubuntu
+
+jobs:
+  deploy:
+    name: Build, publish, and deploy production
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout immutable release source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Validate release identity
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "FAIL: production deployment is restricted to refs/heads/main."
+            exit 1
+          fi
+
+          if [[ ! "${GITHUB_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "FAIL: GITHUB_SHA is not a full 40-character lowercase Git SHA."
+            exit 1
+          fi
+
+          echo "RELEASE_SHA=${GITHUB_SHA}"
+
+      - name: Build all four release images
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          docker build \
+            --pull \
+            --platform linux/amd64 \
+            --tag "meridian-auth:${GITHUB_SHA}" \
+            ./auth-service
+
+          docker build \
+            --pull \
+            --platform linux/amd64 \
+            --tag "meridian-catalog:${GITHUB_SHA}" \
+            ./catalog-service
+
+          docker build \
+            --pull \
+            --platform linux/amd64 \
+            --tag "meridian-orders:${GITHUB_SHA}" \
+            ./orders-service
+
+          docker build \
+            --pull \
+            --platform linux/amd64 \
+            --tag "meridian-frontend:${GITHUB_SHA}" \
+            ./frontend
+
+          echo "BUILD_ALL_FOUR_IMAGES=PASS"
+
+      - name: Configure AWS credentials through GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: meridian-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Prepare pinned production SSH identity
+        shell: bash
+        env:
+          EC2_SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+
+          if [[ -z "${EC2_SSH_PRIVATE_KEY}" ]]; then
+            echo "FAIL: EC2_SSH_PRIVATE_KEY is not configured."
+            exit 1
+          fi
+
+          install -d -m 700 "${HOME}/.ssh"
+
+          printf '%s\n' "${EC2_SSH_PRIVATE_KEY}" \
+            > "${HOME}/.ssh/meridian-production"
+
+          chmod 600 "${HOME}/.ssh/meridian-production"
+
+          install \
+            -m 600 \
+            ops/ssh/known_hosts.production \
+            "${HOME}/.ssh/known_hosts"
+
+          ssh-keygen \
+            -y \
+            -f "${HOME}/.ssh/meridian-production" \
+            >/dev/null
+
+          ssh-keygen \
+            -F "${PRODUCTION_HOST}" \
+            -f "${HOME}/.ssh/known_hosts" \
+            >/dev/null
+
+          echo "PINNED_SSH_IDENTITY=PASS"
+
+      - name: Publish immutable images and deploy production
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          export SSH_KEY_PATH="${HOME}/.ssh/meridian-production"
+          export KNOWN_HOSTS_PATH="${HOME}/.ssh/known_hosts"
+
+          bash ops/deployment/github-actions-production-deploy.sh
+
+      - name: Defense-in-depth cleanup
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+
+          state_file="${RUNNER_TEMP}/meridian-d10-rule-state.tsv"
+          key="${HOME}/.ssh/meridian-production"
+          known_hosts="${HOME}/.ssh/known_hosts"
+          remote_script="/tmp/meridian-deploy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_SHA}.sh"
+
+          cleanup_failed=0
+          state_valid=1
+
+          if [[ -s "${state_file}" ]]; then
+            IFS=$'\t' read -r rule_id runner_cidr rule_description < "${state_file}"
+
+            if [[ ! "${rule_id}" =~ ^sgr-[0-9a-f]+$ ]]; then
+              echo "FAIL: malformed workflow-owned security-group rule ID." >&2
+              cleanup_failed=1
+              state_valid=0
+            fi
+
+            if [[ ! "${runner_cidr}" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}/32$ ]]; then
+              echo "FAIL: malformed stored runner CIDR." >&2
+              cleanup_failed=1
+              state_valid=0
+            fi
+
+            expected_description="Meridian GitHub Actions run ${GITHUB_RUN_ID} attempt ${GITHUB_RUN_ATTEMPT}"
+
+            if [[ "${rule_description}" != "${expected_description}" ]]; then
+              echo "FAIL: stored SSH-rule ownership description is invalid." >&2
+              cleanup_failed=1
+              state_valid=0
+            fi
+
+            if [[ -f "${key}" && -f "${known_hosts}" ]]; then
+              ssh \
+                -4 \
+                -i "${key}" \
+                -o BatchMode=yes \
+                -o IdentitiesOnly=yes \
+                -o StrictHostKeyChecking=yes \
+                -o UserKnownHostsFile="${known_hosts}" \
+                -o CheckHostIP=yes \
+                -o UpdateHostKeys=no \
+                -o ConnectTimeout=15 \
+                "${PRODUCTION_USER}@${PRODUCTION_HOST}" \
+                "rm -f -- '${remote_script}'" \
+                >/dev/null 2>&1 || cleanup_failed=1
+            else
+              echo "WARN: SSH material unavailable for remote-script cleanup." >&2
+              cleanup_failed=1
+            fi
+
+            if (( state_valid == 1 )); then
+              sg_json="$(
+                aws ec2 describe-security-groups \
+                  --region "${AWS_REGION}" \
+                  --group-ids "${PRODUCTION_SECURITY_GROUP_ID}" \
+                  --output json
+              )"
+
+              match_count="$(
+                jq \
+                  --arg cidr "${runner_cidr}" \
+                  --arg description "${rule_description}" \
+                  '[
+                    .SecurityGroups[0].IpPermissions[]?
+                    | select(
+                        .IpProtocol == "tcp"
+                        and .FromPort == 22
+                        and .ToPort == 22
+                      )
+                    | .IpRanges[]?
+                    | select(
+                        .CidrIp == $cidr
+                        and (.Description // "") == $description
+                      )
+                  ] | length' \
+                  <<<"${sg_json}"
+              )"
+
+              if [[ "${match_count}" == "1" ]]; then
+                aws ec2 revoke-security-group-ingress \
+                  --region "${AWS_REGION}" \
+                  --group-id "${PRODUCTION_SECURITY_GROUP_ID}" \
+                  --security-group-rule-ids "${rule_id}" \
+                  >/dev/null
+
+                verify_json="$(
+                  aws ec2 describe-security-groups \
+                    --region "${AWS_REGION}" \
+                    --group-ids "${PRODUCTION_SECURITY_GROUP_ID}" \
+                    --output json
+                )"
+
+                remaining="$(
+                  jq \
+                    --arg cidr "${runner_cidr}" \
+                    --arg description "${rule_description}" \
+                    '[
+                      .SecurityGroups[0].IpPermissions[]?
+                      | select(
+                          .IpProtocol == "tcp"
+                          and .FromPort == 22
+                          and .ToPort == 22
+                        )
+                      | .IpRanges[]?
+                      | select(
+                          .CidrIp == $cidr
+                          and (.Description // "") == $description
+                        )
+                    ] | length' \
+                    <<<"${verify_json}"
+                )"
+
+                if [[ "${remaining}" != "0" ]]; then
+                  echo "FAIL: temporary SSH ingress remains after cleanup." >&2
+                  cleanup_failed=1
+                fi
+              elif [[ "${match_count}" == "0" ]]; then
+                echo "TEMPORARY_SSH_RULE_ALREADY_ABSENT=YES"
+              else
+                echo "FAIL: ambiguous workflow-owned SSH-rule state." >&2
+                cleanup_failed=1
+              fi
+            fi
+
+            if (( cleanup_failed == 0 )); then
+              rm -f "${state_file}"
+            fi
+          fi
+
+          rm -f "${key}" "${known_hosts}"
+
+          if (( cleanup_failed != 0 )); then
+            echo "FAIL: defense-in-depth cleanup did not fully qualify." >&2
+            exit 1
+          fi
+
+          echo "DEFENSE_IN_DEPTH_CLEANUP=COMPLETE"
