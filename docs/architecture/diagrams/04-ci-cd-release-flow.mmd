@@ -1,0 +1,33 @@
+flowchart LR
+    merge["Reviewed merge / push to main"]
+    sha["Exact Git release SHA"]
+    actions["GitHub Actions<br/>contents: read<br/>id-token: write"]
+    oidc["GitHub OIDC"]
+    role["AWS Deployment Role"]
+    ecr["Immutable ECR Images<br/>auth / catalog / orders / frontend"]
+    tempSg["Temporary GitHub Runner /32<br/>SSH ingress"]
+    pinned["Pinned Production SSH Host Identity"]
+    drift["Source vs Live Compose<br/>Drift Interlock"]
+    helper["Governed Production Deploy Helper"]
+    ec2["Production EC2"]
+    compose["Docker Compose<br/>5 healthy containers"]
+    cleanup["Remove Current-Run<br/>Temporary SSH Rule"]
+    accept["Production Acceptance<br/>exact SHA / health / routing"]
+    tag["Frozen Baseline Tag<br/>production-ci-cd-baseline-7d608b1"]
+
+    merge --> sha
+    sha --> actions
+    actions -->|"OIDC federation"| oidc
+    oidc --> role
+
+    actions -->|"build / publish or reuse exact SHA images"| ecr
+    role --> tempSg
+    tempSg --> pinned
+    pinned --> drift
+    drift -->|"PASS"| helper
+    helper --> ec2
+    ecr -->|"exact SHA application images"| compose
+    ec2 --> compose
+    compose --> cleanup
+    cleanup --> accept
+    accept --> tag

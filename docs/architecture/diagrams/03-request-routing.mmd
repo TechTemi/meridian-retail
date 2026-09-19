@@ -1,0 +1,30 @@
+flowchart LR
+    client["Client / Browser"]
+    hostname["meridian-retail-temi.duckdns.org"]
+    http["HTTP :80"]
+    https["HTTPS :443<br/>TLS 1.2 / 1.3"]
+    acme["/.well-known/acme-challenge/"]
+    nginx["Nginx"]
+
+    frontend["Frontend Container<br/>host 127.0.0.1:8080<br/>container 80"]
+    auth["Auth Container<br/>host 127.0.0.1:8001<br/>container 8000"]
+    catalog["Catalog Container<br/>host 127.0.0.1:8002<br/>container 4000"]
+    orders["Orders Container<br/>host 127.0.0.1:8003<br/>container 8001"]
+    postgres[("PostgreSQL<br/>internal 5432<br/>not publicly host-published")]
+
+    client --> hostname
+    hostname --> http
+    hostname --> https
+
+    http --> acme
+    http -->|"canonical application traffic"| nginx
+    https --> nginx
+
+    nginx -->|"/"| frontend
+    nginx -->|"/api/auth/"| auth
+    nginx -->|"/api/catalog/"| catalog
+    nginx -->|"/api/orders"| orders
+
+    auth --> postgres
+    catalog --> postgres
+    orders --> postgres

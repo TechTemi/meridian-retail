@@ -1,0 +1,37 @@
+flowchart TB
+    live[("Live meridian_db<br/>protected source database")]
+    timer["systemd Timer<br/>OnCalendar=daily<br/>Persistent=true"]
+    service["Backup Service"]
+    backup["backup_db.sh"]
+    dump["pg_dump<br/>custom-format backup"]
+    artifact["Backup Artifact"]
+    checksum["SHA-256 Sidecar"]
+
+    restore["restore_db.sh"]
+    verify["Verify SHA-256<br/>and pg_restore archive"]
+    guard["Safety Guard<br/>refuse live source DB<br/>target must start meridian_d9_"]
+    scratch[("Isolated meridian_d9_*<br/>restore target")]
+    pgrestore["pg_restore"]
+    validate["Validate D8 Schema Contract"]
+    success["Restore Acceptance"]
+    cleanup["Remove Incomplete Target<br/>on preparation / restore / validation failure"]
+
+    timer --> service
+    service --> backup
+    live -->|"read-only backup source"| dump
+    backup --> dump
+    dump --> artifact
+    artifact --> checksum
+
+    artifact --> restore
+    checksum --> verify
+    restore --> verify
+    verify --> guard
+    guard --> scratch
+    scratch --> pgrestore
+    pgrestore --> validate
+    validate --> success
+
+    guard -.->|"prohibits destructive restore"| live
+    pgrestore -.->|"failure"| cleanup
+    validate -.->|"failure"| cleanup

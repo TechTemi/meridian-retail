@@ -1,0 +1,42 @@
+flowchart LR
+    user["User / Browser"]
+    dns["DuckDNS<br/>meridian-retail-temi.duckdns.org"]
+    eip["AWS Elastic IP<br/>98.88.168.236"]
+
+    subgraph aws["AWS Production"]
+        subgraph ec2["Ubuntu EC2 Application Host"]
+            nginx["Nginx<br/>HTTP 80 / HTTPS 443"]
+            frontend["Frontend<br/>127.0.0.1:8080"]
+            auth["Auth Service<br/>127.0.0.1:8001"]
+            catalog["Catalog Service<br/>127.0.0.1:8002"]
+            orders["Orders Service<br/>127.0.0.1:8003"]
+            postgres[("PostgreSQL<br/>internal 5432")]
+        end
+
+        ecr["Amazon ECR<br/>4 immutable application repositories"]
+        appRole["EC2 Application IAM Role<br/>Instance Profile"]
+        deployRole["GitHub Deployment IAM Role"]
+        oidc["GitHub OIDC Provider"]
+    end
+
+    gha["GitHub Actions<br/>push to main"]
+
+    user -->|"HTTPS"| dns
+    dns --> eip
+    eip --> nginx
+
+    nginx -->|"/"| frontend
+    nginx -->|"/api/auth/"| auth
+    nginx -->|"/api/catalog/"| catalog
+    nginx -->|"/api/orders"| orders
+
+    auth --> postgres
+    catalog --> postgres
+    orders --> postgres
+
+    gha -->|"OIDC federation"| oidc
+    oidc --> deployRole
+    gha -->|"build / publish release images"| ecr
+    deployRole -->|"governed deployment access"| ec2
+    ecr -->|"immutable release images"| ec2
+    appRole -.->|"runtime AWS permissions"| ec2

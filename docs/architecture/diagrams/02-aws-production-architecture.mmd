@@ -1,0 +1,38 @@
+flowchart TB
+    internet["Internet"]
+    github["GitHub Actions"]
+    oidc["GitHub OIDC Provider"]
+    deployRole["GitHub Deployment IAM Role"]
+    ecr["Amazon ECR<br/>auth / catalog / orders / frontend"]
+    s3["Protected S3 Backup Bucket<br/>provisioned infrastructure"]
+
+    subgraph vpc["Custom AWS VPC"]
+        igw["Internet Gateway"]
+        route["Public Route Table<br/>default Internet route"]
+
+        subgraph subnet["Public Subnet"]
+            eip["Elastic IP"]
+            sg["Application Security Group<br/>HTTP 80 / HTTPS 443<br/>restricted SSH"]
+            ec2["Ubuntu EC2 Application Host"]
+            profile["EC2 Instance Profile"]
+            appRole["EC2 Application IAM Role"]
+        end
+    end
+
+    internet --> igw
+    igw --> route
+    route --> subnet
+    eip --> ec2
+    sg -.-> ec2
+
+    github -->|"OIDC"| oidc
+    oidc --> deployRole
+    deployRole -->|"deployment permissions"| ecr
+    deployRole -->|"temporary governed deployment access"| sg
+    deployRole -->|"SSH deployment path"| ec2
+
+    profile --> appRole
+    appRole -->|"runtime ECR pull permissions"| ecr
+    profile -.-> ec2
+
+    s3 -.->|"provisioned backup storage foundation"| vpc
